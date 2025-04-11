@@ -49,6 +49,26 @@ def make_tuning_step(neural_net, optimizer, target_representations, content_feat
     return tuning_step
 
 
+def preprocess_image(image_path, target_height, device):
+    """
+    Preprocesses the image by resizing it to the target height while maintaining aspect ratio.
+    """
+    try:
+        img = Image.open(image_path).convert('RGB')
+        aspect_ratio = img.width / img.height
+        target_width = int(target_height * aspect_ratio)
+        img = img.resize((target_width, target_height), Image.LANCZOS)
+        
+        # Save the resized image to a temporary file
+        temp_path = os.path.join(os.path.dirname(image_path), f"temp_{os.path.basename(image_path)}")
+        img.save(temp_path)
+        
+        # Pass the temporary file path to utils.prepare_img
+        return utils.prepare_img(temp_path, target_height, device)
+    except Exception as e:
+        raise ValueError(f"Error processing image {image_path}: {e}")
+
+
 def neural_style_transfer(config):
     content_img_path = os.path.join(config['content_images_dir'], config['content_img_name'])
     style_img_path = os.path.join(config['style_images_dir'], config['style_img_name'])
@@ -59,20 +79,23 @@ def neural_style_transfer(config):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    content_img = utils.prepare_img(content_img_path, config['height'], device)
-    style_img = utils.prepare_img(style_img_path, config['height'], device)
+    try:
+        content_img = preprocess_image(content_img_path, config['height'], device)
+        style_img = preprocess_image(style_img_path, config['height'], device)
+    except ValueError as e:
+        print(e)
+        return None
 
+    # Adjust initialization dynamically based on input images
     if config['init_method'] == 'random':
-        # white_noise_img = np.random.uniform(-90., 90., content_img.shape).astype(np.float32)
         gaussian_noise_img = np.random.normal(loc=0, scale=90., size=content_img.shape).astype(np.float32)
         init_img = torch.from_numpy(gaussian_noise_img).float().to(device)
     elif config['init_method'] == 'content':
         init_img = content_img
+    elif config['init_method'] == 'style':
+        init_img = style_img
     else:
-        # init image has same dimension as content image - this is a hard constraint
-        # feature maps need to be of same size for content image and init image
-        style_img_resized = utils.prepare_img(style_img_path, np.asarray(content_img.shape[2:]), device)
-        init_img = style_img_resized
+        raise ValueError(f"Unknown initialization method: {config['init_method']}")
 
     # we are tuning optimizing_img's pixels! (that's why requires_grad=True)
     optimizing_img = Variable(init_img, requires_grad=True)
@@ -176,69 +199,83 @@ def main():
     
     # Handle content image upload
     if content_img_file is not None:
-        content_img = Image.open(content_img_file).convert('RGB')
-        content_img_name = f"uploaded_content_{int(time.time())}.jpg"
-        content_img_path = os.path.join(content_images_dir, content_img_name)
-        content_img.save(content_img_path)
-        with col1:
-            st.subheader("Content Image")
-            st.image(content_img, width=300)
+        try:
+            content_img = Image.open(content_img_file).convert('RGB')
+            content_img_name = f"uploaded_content_{int(time.time())}.jpg"
+            content_img_path = os.path.join(content_images_dir, content_img_name)
+            content_img.save(content_img_path)
+            with col1:
+                st.subheader("Content Image")
+                st.image(content_img, width=300)
+        except Exception as e:
+            st.error(f"Error loading content image: {e}")
+            content_img_path = None
     
     # Handle style image upload
     if style_img_file is not None:
-        style_img = Image.open(style_img_file).convert('RGB')
-        style_img_name = f"uploaded_style_{int(time.time())}.jpg"
-        style_img_path = os.path.join(style_images_dir, style_img_name)
-        style_img.save(style_img_path)
-        with col2:
-            st.subheader("Style Image")
-            st.image(style_img, width=300)
+        try:
+            style_img = Image.open(style_img_file).convert('RGB')
+            style_img_name = f"uploaded_style_{int(time.time())}.jpg"
+            style_img_path = os.path.join(style_images_dir, style_img_name)
+            style_img.save(style_img_path)
+            with col2:
+                st.subheader("Style Image")
+                st.image(style_img, width=300)
+        except Exception as e:
+            st.error(f"Error loading style image: {e}")
+            style_img_path = None
     
     # Process button
     process_button = st.button("Generate Styled Image", disabled=(content_img_path is None or style_img_path is None))
     
     if process_button and content_img_path and style_img_path:
-        # Create configuration dictionary
-        optimization_config = {
-            'content_img_name': os.path.basename(content_img_path),
-            'style_img_name': os.path.basename(style_img_path),
-            'height': height,
-            'content_weight': content_weight,
-            'style_weight': style_weight,
-            'tv_weight': tv_weight,
-            'optimizer': optimizer,
-            'model': model,
-            'init_method': init_method,
-            'saving_freq': saving_freq,
-            'content_images_dir': content_images_dir,
-            'style_images_dir': style_images_dir,
-            'output_img_dir': output_img_dir,
-            'img_format': img_format
-        }
-        
-        with st.spinner("Generating styled image... This might take a while depending on your settings."):
-            # Run neural style transfer
-            results_path = neural_style_transfer(optimization_config)
+        try:
+            # Create configuration dictionary
+            optimization_config = {
+                'content_img_name': os.path.basename(content_img_path),
+                'style_img_name': os.path.basename(style_img_path),
+                'height': height,
+                'content_weight': content_weight,
+                'style_weight': style_weight,
+                'tv_weight': tv_weight,
+                'optimizer': optimizer,
+                'model': model,
+                'init_method': init_method,
+                'saving_freq': saving_freq,
+                'content_images_dir': content_images_dir,
+                'style_images_dir': style_images_dir,
+                'output_img_dir': output_img_dir,
+                'img_format': img_format
+            }
             
-            # Find the latest output image
-            output_files = sorted([f for f in os.listdir(results_path) if f.endswith(img_format[1])])
-            if output_files:
-                output_img_path = os.path.join(results_path, output_files[-1])
-                output_img = Image.open(output_img_path)
+            with st.spinner("Generating styled image... This might take a while depending on your settings."):
+                # Run neural style transfer
+                results_path = neural_style_transfer(optimization_config)
+                if results_path is None:
+                    st.error("Failed to process images. Please check the logs for details.")
+                    return
                 
-                st.subheader("Result Image")
-                st.image(output_img)
-                
-                # Provide download button
-                with open(output_img_path, "rb") as file:
-                    btn = st.download_button(
-                        label="Download Result",
-                        data=file,
-                        file_name=f"nst_result_{int(time.time())}.jpg",
-                        mime="image/jpeg"
-                    )
-            else:
-                st.error("Failed to generate output image.")
+                # Find the latest output image
+                output_files = sorted([f for f in os.listdir(results_path) if f.endswith(img_format[1])])
+                if output_files:
+                    output_img_path = os.path.join(results_path, output_files[-1])
+                    output_img = Image.open(output_img_path)
+                    
+                    st.subheader("Result Image")
+                    st.image(output_img)
+                    
+                    # Provide download button
+                    with open(output_img_path, "rb") as file:
+                        btn = st.download_button(
+                            label="Download Result",
+                            data=file,
+                            file_name=f"nst_result_{int(time.time())}.jpg",
+                            mime="image/jpeg"
+                        )
+                else:
+                    st.error("Failed to generate output image.")
+        except Exception as e:
+            st.error(f"An error occurred during processing: {e}")
     
     # Display tips in an expander
     with st.expander("Tips for good results"):

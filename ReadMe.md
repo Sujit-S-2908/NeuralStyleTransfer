@@ -30,7 +30,7 @@ This application uses deep learning techniques to transfer the style of one imag
 1. Clone the repository:
 
     ```
-    git clone https://github.com/Sudharshan-3904/NeuralStyleTransfer.git
+    git clone https://github.com/Sujit-S-2908/NeuralStyleTransfer.git
     cd NeuralStyleTransfer
     ```
 

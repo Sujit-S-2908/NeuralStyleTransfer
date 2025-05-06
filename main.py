@@ -545,6 +545,31 @@ def main():
         Experiment with different weight combinations to achieve the desired effect!
         """)
 
+def show_contributors():
+    """
+    Display the contributors to this project with links to their GitHub profiles.
+    """
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Contributors")
+
+    # Contributors with their GitHub usernames
+    contributors = [
+        {"name": "Dharshan S", "github": "shanshadow"},
+        {"name": "Jaaswin S", "github": "JASWINCKS"},
+        {"name": "Sudharshan M", "github": "Sudharshan-3904"},
+        {"name": "Sujit S", "github": "Sujit-S-2908"}
+    ]
+
+    # Display each contributor with a GitHub link
+    for contributor in contributors:
+        col1, col2 = st.sidebar.columns([3, 1])
+        with col1:
+            st.markdown(f"• {contributor['name']}")
+        with col2:
+            github_url = f"https://github.com/{contributor['github']}"
+            st.markdown(f"[<img src='https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png' width='20'>]({github_url})", unsafe_allow_html=True)
+
 if __name__ == "__main__":
     main()
+    show_contributors()
 

@@ -1,13 +1,5 @@
-# dev
 torch
 torchvision
 torchaudio
 numpy
 opencv-python
-
-# master
-pytorch
-torchvision
-numpy
-pillow
-torchvision

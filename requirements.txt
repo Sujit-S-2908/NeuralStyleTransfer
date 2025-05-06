@@ -4,3 +4,4 @@ torchaudio
 numpy
 opencv-python
 streamlit
+opencv-python

@@ -2,4 +2,6 @@ torch
 torchvision
 torchaudio
 numpy
-opencv-python
+opencv-python-headless
+streamlit
+matplotlib
